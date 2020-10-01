@@ -1,0 +1,1 @@
+["sbt.Task[scala.collection.immutable.Map[java.lang.String, scala.collection.Seq[scala.Tuple2[java.nio.file.Path, sbt.nio.FileStamp]]]]",{"2.12.10":{"hashes":[["/Users/maximevgrafov/Documents/GitHub/tweet_analyzer/tweet_stream-app/test_stream.scala","7e9880193142dd71d422f000a1d78ecfc7aa9d5a"]],"lastModifiedTimes":[]}}]
