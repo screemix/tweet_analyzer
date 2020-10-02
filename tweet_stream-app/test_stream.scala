@@ -14,9 +14,7 @@ object MainObject {
 
         val TrainFile = sc.textFile(train_dataset_path)
 
-        val TestStream = ssc.fileStream(test_dataset_path)
-
-
+        val TestStream = ssc.fileStream[](test_dataset_path)
 
         val AllaModel = MyModel1()
         val AminaModel = MyModel2()
@@ -25,12 +23,15 @@ object MainObject {
         AminaModel.fit(TrainFile)
 
 
+
+
+
 	}
 
     
 
 	class MyModel1 {
-		def fit(train_file : RDD){
+		def fit(){
 			println("Model1 is fitted")
 		}
 
@@ -41,7 +42,7 @@ object MainObject {
 
 	class MyModel2 {
 
-		def fit(train_file : RDD){
+		def fit(){
 			println("Model2 is fitted")
 		}
 
