@@ -3,6 +3,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd._
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.ml.feature.{RegexTokenizer, StopWordsRemover, Tokenizer}
+import org.apache.spark.ml.feature.{HashingTF, IDF}
 
 class Preprocessor {
 
@@ -33,4 +34,24 @@ class Preprocessor {
     train_cleared
   }
 
+  def tfIdf(data: sql.DataFrame ): Unit ={
+    val zero_sent = data.filter("sentiment == 0")
+    val  one_sent = data.filter("sentiment == 1")
+
+    val hashingTF = new HashingTF().setInputCol("filtered").setOutputCol("TF").setNumFeatures(20)
+    val tfDataZeroSent = hashingTF.transform(zero_sent)
+    val tfDataOneSent = hashingTF.transform(one_sent)
+
+    val idf = new IDF().setInputCol("TF").setOutputCol("TFIDF")
+    val idfModelZero = idf.fit(tfDataZeroSent)
+    val idfModelOne = idf.fit(tfDataOneSent)
+    val rescaledZero = idfModelZero.transform(tfDataZeroSent).select("id", "sentiment", "filtered", "TFIDF")
+    val rescaledOne = idfModelOne.transform(tfDataOneSent).select("id", "sentiment", "filtered", "TFIDF")
+    val rescaled = rescaledOne.union(rescaledZero)
+    rescaled
+  }
+}
+
+class neigbourModel {
+  
 }
