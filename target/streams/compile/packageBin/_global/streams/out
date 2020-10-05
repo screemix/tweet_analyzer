@@ -1,0 +1,15 @@
+[0m[[0m[0mdebug[0m] [0m[0mPackaging /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/assignment2_2.12-1.0.jar ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mInput file mappings:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	TweetAnalysis.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/TweetAnalysis.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	TweetAnalysis$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/TweetAnalysis$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	preprocessor[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/preprocessor[0m
+[0m[[0m[0mdebug[0m] [0m[0m	preprocessor/Preprocessor$$typecreator4$1.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/preprocessor/Preprocessor$$typecreator4$1.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	preprocessor/Preprocessor.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/preprocessor/Preprocessor.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	preprocessor/Preprocessor$$typecreator5$1.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  /home/noteis/Documents/big_data/git_ass2/target/scala-2.12/classes/preprocessor/Preprocessor$$typecreator5$1.class[0m
+[0m[[0m[0mdebug[0m] [0m[0mDone packaging.[0m
