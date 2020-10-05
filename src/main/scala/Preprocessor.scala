@@ -15,7 +15,7 @@ class Preprocessor {
 
     val train_data_unsliced = train_data_file.map(line => (line.split(",")(0), line.split(",")(1), line.split(",")(2))).collect()
 
-    val train_data = sc.parallelize(train_data_unsliced.slice(1, train_data_unsliced.length)).
+      val train_data =  (train_data_unsliced.slice(1, train_data_unsliced.length)).
       map(x => (x._1.toInt, x._2.toInt, x._3)).
       toDF("id", "sentiment", "sentence")
 
@@ -52,6 +52,19 @@ class Preprocessor {
   }
 }
 
-class neigbourModel {
-  
+class clearInput {
+  def classify(twit: String): Unit ={
+    val processed_tweet = tweet.replaceAll("[''()_,!?;;]", "").trim.toLowerCase
+    val tweet_df = Seq(processed_tweet).toDF("sentence")
+    val regexTokenizer = new RegexTokenizer().setInputCol("sentence").setOutputCol("words").setPattern("\\w+").setGaps(false)
+    val tweet_tokenized = regexTokenizer.transform(tweet_df)
+
+    val remover = new StopWordsRemover().setInputCol("words").setOutputCol("filtered")
+    val tweet_cleared = remover.transform(tweet_tokenized).select("sentence", "filtered")
+
+    val hashingTF = new HashingTF().setInputCol("filtered").setOutputCol("TF").setNumFeatures(5)
+    val tweetTF = hashingTF.transform(tweet_cleared)
+    tweetTF
+
+  }
 }
