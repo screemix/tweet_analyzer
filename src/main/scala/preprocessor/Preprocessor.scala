@@ -65,7 +65,7 @@ class Preprocessor {
     // return cleared dataframe
     // columns: id, sentiment, filtered tokens, alias, repitiion, exclamation
     val cleared = remover.transform(train_tokenized).select("id", "sentiment", "filtered", "alias", "repetition", "exclamation")
-    cleared
+    cleared.toDF("id", "label", "filtered", "alias", "repetition", "exclamation")
   }
 
 
