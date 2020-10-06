@@ -1,4 +1,4 @@
-[0m[[0m[31merror[0m] [0m[0m/Users/maximevgrafov/Documents/GitHub/tweet_analyzer/tweet_stream-app/test_stream.scala:10:43: Int.type does not take parameters[0m
-[0m[[0m[31merror[0m] [0m[0m    def predict(input_vector : Int) = Int {[0m
-[0m[[0m[31merror[0m] [0m[0m                                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/Users/maximevgrafov/Documents/GitHub/tweet_analyzer/tweet_stream-app/test_stream.scala:76:38: value stop is not a member of Boolean[0m
+[0m[[0m[31merror[0m] [0m[0m					        .awaitTermination(3000).stop()[0m
+[0m[[0m[31merror[0m] [0m[0m					                                ^[0m
 [0m[[0m[31merror[0m] [0m[0mone error found[0m
