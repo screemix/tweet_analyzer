@@ -1,8 +1,15 @@
 package preprocessor
 
 import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.{HashingTF, IDF, RegexTokenizer, StopWordsRemover}
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.api.java.JavaRDD.fromRDD
+import org.apache.spark.ml.feature.{RegexTokenizer, StopWordsRemover, Word2Vec, Word2VecModel}
+import org.apache.spark.sql.{DataFrame, Dataset, SQLContext}
+import org.apache.spark.mllib.classification.{LogisticRegressionModel, LogisticRegressionWithLBFGS}
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
+import org.apache.spark.rdd.RDD
 
 class Preprocessor {
 
@@ -100,6 +107,54 @@ class Preprocessor {
     // perform preprocessing
     val cleared_tweet = clear_seq(s, sc)
     cleared_tweet.select("id", "filtered", "alias", "repetition", "exclamation")
+  }
+
+
+  def logreg(df: DataFrame, sc: SparkContext): (Word2VecModel, LogisticRegressionModel, (Double, Double)) = {
+    val sqlContext= new SQLContext(sc)
+    import sqlContext.implicits._
+
+    val Array(train, test) = df.randomSplit(Array[Double](0.8, 0.2), 20)
+
+    // training
+    val word2Vec = new Word2Vec()
+      .setInputCol("filtered")
+      .setOutputCol("vectorized")
+      .setVectorSize(10)
+      .setMinCount(30)
+
+    val model = word2Vec.fit(train)
+
+    val result = model.transform(train)
+    val w2v_model = model
+
+    val train_labeled = result.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vectorized")))).rdd
+
+    val lr = new LogisticRegressionWithLBFGS()
+      .setNumClasses(2)
+      .run(train_labeled)
+
+    val lr_model = lr
+
+    lr.save(sc, "logregModel")
+
+    // testing
+    lr.clearThreshold()
+
+    val test_vect = model.transform(test)
+    val test_labeled = test_vect.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vectorized")))).rdd
+    val predictionAndLabels = test_labeled.map { case LabeledPoint(label, features) =>
+      val prediction = lr.predict(features)
+      (prediction, label)
+    }
+
+    val metrics = new BinaryClassificationMetrics(predictionAndLabels)
+
+    val f1Score = metrics.fMeasureByThreshold.collect()
+
+    val max_score = f1Score.maxBy(_._2)
+
+    (model, lr, max_score)
   }
 
 }
