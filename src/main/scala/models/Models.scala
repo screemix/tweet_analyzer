@@ -14,30 +14,6 @@ import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.rdd.RDD
 import preprocessor.Preprocessor
 
-class CustomKNN {
-  def fit(data: DataFrame): Unit ={
-    val data_vec = w2vModel.transform(data)
-    data_vec
-  }
-  def predict(data: DataFrame, tweet: DataFrame, w2vModel: Word2VecModel, sc: SparkContext, k: Int): Int ={
-    val tweet_vec = tweet.first().getAs[Vector]("vec")
-    val dist = data.map(x => (math abs(x.getAs[Vector]("vec").dot(tweet_vec)) / (math sqrt(x.getAs[Vector]("vec").dot(x.getAs[Vector]("vec")) * tweet_vec.dot(tweet_vec)))))
-    val dist_temp = dist.withColumn("rowId1", monotonically_increasing_id())
-    val data_temp = data.withColumn("rowId2", monotonically_increasing_id())
-    val distances = dist_temp.as("df1").join(data_temp.as("df2"), res3("rowId1") === res("rowId2"), "inner").select("df1.value", "df2.id", "df2.sentiment")
-    val result = distances.sort(col("value"))
-
-    val num =  distances.sort(col("value")).select(col("sentiment")).head(10).map(x => x(0).asInstanceOf[Int]).reduce(_+_)
-    if (num >= k /2){
-      1
-    }
-    else{
-      0
-    }
-
-  }
-}
-
 class Models {
 
   def evaluate(predictionAndLabels: RDD[(Double, Double)]): (Double, Double) = {
