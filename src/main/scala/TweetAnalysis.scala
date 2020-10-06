@@ -9,6 +9,7 @@ import org.apache.spark.sql.catalyst.dsl.expressions.StringToAttributeConversion
 import org.apache.spark.sql.functions._
 import org.apache.log4j.{Level, Logger}
 import preprocessor.Preprocessor
+import models.Models
 
 object TweetAnalysis {
   def main(args: Array[String]): Unit = {
@@ -17,6 +18,7 @@ object TweetAnalysis {
     val conf = new SparkConf().setAppName("appName")
     val sc = new SparkContext(conf)
     val preprocessor = new Preprocessor()
+    val models = new Models()
 
     val inputPath = "data/train.csv"
     val outputPath = "test_preprocess_out.csv"
@@ -24,20 +26,30 @@ object TweetAnalysis {
 
     println("start preprocessing")
     val train_cleared = preprocessor.clear_train(inputPath, sc)
-    train_cleared.show(20)
     val tweet_cleared = preprocessor.clear_input(tweet, sc)
-    tweet_cleared.show(false)
 
-    println("start training")
-    val temp = preprocessor.logreg(train_cleared, sc)
+    val Array(train, test) = train_cleared.randomSplit(Array[Double](0.7, 0.3))
 
-    val w2v_model = temp._1
-    val lr_model = temp._2
-    val temp2 = temp._3
+    println("start word2vec")
+    val w2v = preprocessor.word2vec_train(train, 30, 10, "filtered", "vec")
+    w2v.save("w2vModel")
 
+    println("start training logreg")
+    val lr_out = models.logreg_train_eval(train, test, w2v, sc)
+    println("---------------LOGISTIC REGRESSION---------------")
     print("Max f1 score is ")
-    print(temp2._2)
+    print(lr_out._2._2)
     print(" for the threshold ")
-    println(temp2._1)
+    println(lr_out._2._1)
+    lr_out._1.save(sc, "logregModel")
+
+    println("start training random forest")
+    val rf_out = models.randForest_train_eval(train, test, w2v, sc)
+    println("---------------RANDOM FOREST---------------")
+    print("Max f1 score is ")
+    print(rf_out._2._2)
+    print(" for the threshold ")
+    println(rf_out._2._1)
+    rf_out._1.save("rfModel")
   }
 }
