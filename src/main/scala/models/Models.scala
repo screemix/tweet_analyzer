@@ -67,8 +67,8 @@ class Models {
       reduceByKey((x, y) => (x + y) / 2.0).
       collect()
 
-    val max_score = f1Score.maxBy(_._2)
-    max_score
+    val maxScore = f1Score.maxBy(_._2)
+    maxScore
   }
 
 
@@ -81,7 +81,7 @@ class Models {
     import sqlContext.implicits._
 
     // vectorize train data
-    val train_vec_lr = w2vModel.transform(train)
+    val trainVecLr = w2vModel.transform(train)
 
     // transform train data to labeled point - UNNEEDED BUT WHATEVER
     //val train_labeled = train_vec_lr.map(x => LabeledPoint(x.getAs[Int]("label").toDouble, Vectors.fromML(x.getAs[Vector]("features")))).rdd
@@ -94,19 +94,19 @@ class Models {
     // ------------HYPERPARAM TUNING------------
     // COMMENTED CODE USED FOR TUNING
     // hyperparam tuning and crying
-    val paramGrid_lr = new ParamGridBuilder().
+    val paramGridLr = new ParamGridBuilder().
       addGrid(lrModel.regParam, Array(0, 0.01, 0.1)).
       addGrid(lrModel.threshold, Array(0.3, 0.4, 0.5, 0.6)).
       addGrid(lrModel.fitIntercept, Array(true, false)).
       build()
 
-    val crossval_lr = new CrossValidator()
+    val crossvalLr = new CrossValidator()
       .setEstimator(lrModel)
       .setEvaluator(new BinaryClassificationEvaluator)
-      .setEstimatorParamMaps(paramGrid_lr)
+      .setEstimatorParamMaps(paramGridLr)
       .setNumFolds(5)
 
-    val cvModel = crossval_lr.fit(train_vec_lr)
+    val cvModel = crossvalLr.fit(trainVecLr)
 
     println("Logistic Regression - Best Params")
     println(cvModel.bestModel.extractParamMap())
@@ -125,7 +125,7 @@ class Models {
     import sqlContext.implicits._
 
     // vectorize train data
-    val train_vec_rf = w2vModel.transform(train)
+    val trainVecRf = w2vModel.transform(train)
 
     // new random forest model, train
     val rf = new RandomForestClassifier().
@@ -135,18 +135,18 @@ class Models {
     // ------------HYPERPARAM TUNING------------
     // COMMENTED CODE USED FOR TUNING
     // hyperparam tuning and crying
-    val paramGrid_rf = new ParamGridBuilder().
+    val paramGridRf = new ParamGridBuilder().
       addGrid(rf.maxDepth, Array(5, 10)).
       addGrid(rf.numTrees, Array(5, 10, 20, 30)).
       build()
 
-    val crossval_rf = new CrossValidator()
+    val crossvalRf = new CrossValidator()
       .setEstimator(rf)
       .setEvaluator(new BinaryClassificationEvaluator)
-      .setEstimatorParamMaps(paramGrid_rf)
+      .setEstimatorParamMaps(paramGridRf)
       .setNumFolds(5)
 
-    val cvModel = crossval_rf.fit(train_vec_rf)
+    val cvModel = crossvalRf.fit(trainVecRf)
 
     println("Random Forest - Best Params")
     println(cvModel.bestModel.extractParamMap())
@@ -164,21 +164,37 @@ class Models {
     import sqlContext.implicits._
 
     // vectorize test data
-    val test_vec = w2vModel.transform(test)
+    val testVec = w2vModel.transform(test)
     // transform test data to labeledpoint
     //val test_labeled = test_vec_lr.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vec")))).rdd
 
-    val test_transf = model.transform(test_vec)
+    val testTransf = model.transform(testVec)
     // make predictions on test data
-    val predictionAndLabels = test_transf.map(x => (x.getAs[Vector]("probability")(1), x.getAs[Int]("label").toDouble)).rdd
+    val predictionAndLabels = testTransf.map(x => (x.getAs[Vector]("probability")(1), x.getAs[Int]("label").toDouble)).rdd
 
     // evaluate mode, find the best threshold
-    val max_score = evaluate(predictionAndLabels)
-    val threshold = max_score._1
+    val maxScore = evaluate(predictionAndLabels)
+    val threshold = maxScore._1
 
     // return (precision, recall, f1 score)
     evaluate_custom(predictionAndLabels.map(x => if (x._1 > threshold) (1.0, x._2) else (0.0, x._2)))
 
+  }
+
+
+  def predict(tweet: DataFrame, w2vModel: Word2VecModel, model: CrossValidatorModel, sc: SparkContext): Int = {
+
+    // makes a prediction for a single tweet
+
+    val sqlContext = new SQLContext(sc)
+    import sqlContext.implicits._
+
+    // vectorize tweet
+    val tweetVec = w2vModel.transform(tweet)
+
+    // make prediction
+    val tweetTransf = model.transform(tweetVec)
+    tweetTransf.first().getAs[Double]("prediction").toInt
   }
 
 }

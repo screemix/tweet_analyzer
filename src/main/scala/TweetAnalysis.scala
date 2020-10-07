@@ -2,7 +2,7 @@ import org.apache.spark
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd._
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
 import org.apache.spark.ml.feature.{RegexTokenizer, StopWordsRemover}
 import org.apache.spark.ml.feature.{HashingTF, IDF}
 import org.apache.spark.sql.catalyst.dsl.expressions.StringToAttributeConversionHelper
@@ -17,19 +17,62 @@ import models.Models
 
 object TweetAnalysis {
   def main(args: Array[String]): Unit = {
+
     Logger.getLogger("org.apache.spark").setLevel(Level.ERROR)
 
-    val conf = new SparkConf().setAppName("appName")
-    val sc = new SparkContext(conf)
+    val inputPath = args(0)
 
-    evalOnTrainTest(sc)
+    val spark = SparkSession.builder().appName("very streaming very scala \uD80C\uDD8F").getOrCreate()
+    val sc = spark.sparkContext
+    val preprocessor = new Preprocessor()
+    val models = new Models()
+
+    // evaluate on train data
+    val trainedModels = evalOnTrainTest(inputPath, preprocessor, models, sc)
+    val w2vModel = trainedModels._1
+    val lrModel = trainedModels._2
+    val rfModel = trainedModels._3
+
+    // stream analysis
+    println("START STREAM PROCESSING")
+    val tweets = spark.readStream.format("socket").option("host", "10.90.138.32").option("port", "8989").load()
+
+    val notNull = tweets.filter("value != ''")
+
+    // val Models_predict = notNull.withColumn("1st model", AllaModel.predict(col("value").toString()))
+    // 							.withColumn("2nd model", AminaModel.predict(col("value").toString()))
+
+    val Models_predict = notNull.select(col("value"),
+      lit(predict(col("value").toString(), preprocessor, models, w2vModel, lrModel, sc)).as("1st model"),
+      lit(predict(col("value").toString(), preprocessor, models, w2vModel, rfModel, sc)).as("2nd model"))
+
+
+    val query = Models_predict.writeStream
+      .format("csv")
+      .option("format", "append")
+      .option("path", "hdfs://namenode:9000/user/sharpei/output/")
+      .option("checkpointLocation", "hdfs://namenode:9000/user/sharpei/checkpoint_dir/")
+      .outputMode("append")
+      .start()
+      .awaitTermination(60000 * 30)
+
+
+    spark.read.csv("hdfs://namenode:9000/user/sharpei/output/").coalesce(1).write.csv("hdfs://namenode:9000/user/sharpei/final_output/")
 
   }
 
-  def evalOnTrainTest(sc: SparkContext): Unit = {
-    val inputPath = "data/train.csv"
-    val preprocessor = new Preprocessor()
-    val models = new Models()
+
+  def predict(tweet: String, preprocessor: Preprocessor, models: Models, w2vModel: Word2VecModel, model: CrossValidatorModel, sc: SparkContext): Int = {
+    val tweetCleared = preprocessor.clear_input(tweet, sc)
+    val prediction = models.predict(tweetCleared, w2vModel, model, sc)
+    prediction
+  }
+
+
+  def evalOnTrainTest(inputPath: String, preprocessor: Preprocessor, models: Models, sc: SparkContext): (Word2VecModel, CrossValidatorModel, CrossValidatorModel) = {
+
+    // creates or loads models
+    //
 
     val conf = sc.hadoopConfiguration
     val fs = org.apache.hadoop.fs.FileSystem.get(conf)
@@ -121,5 +164,7 @@ object TweetAnalysis {
     print("f1 score: ")
     println(scores_rf._3)
     // ----------------RAND FOREST MODEL----------------
+
+    (w2vModel, lrModel, rfModel)
   }
 }
