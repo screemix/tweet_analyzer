@@ -10,6 +10,8 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.ml.tuning.CrossValidatorModel
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.feature.Word2VecModel
+import java.io.File
+
 import preprocessor.Preprocessor
 import models.Models
 
@@ -19,41 +21,105 @@ object TweetAnalysis {
 
     val conf = new SparkConf().setAppName("appName")
     val sc = new SparkContext(conf)
+
+    evalOnTrainTest(sc)
+
+  }
+
+  def evalOnTrainTest(sc: SparkContext): Unit = {
+    val inputPath = "data/train.csv"
     val preprocessor = new Preprocessor()
     val models = new Models()
 
-    val inputPath = "data/train.csv"
-    val outputPath = "test_preprocess_out.csv"
-    val tweet = "@_metallicar You mean @deanwinchester wouldn't like my beer flavoured bikini? Ah well. Have to shut your door, wings soaped up next"
+    val conf = sc.hadoopConfiguration
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
 
+    // clear train file
     println("start preprocessing")
     val train_cleared = preprocessor.clear_train(inputPath, sc)
-    val tweet_cleared = preprocessor.clear_input(tweet, sc)
 
+    // train-test split
     val Array(train, test) = train_cleared.randomSplit(Array[Double](0.7, 0.3))
 
-//    println("start word2vec")
-//    val w2v = preprocessor.word2vec_train(train, 30, 10, "filtered", "features")
-//    w2v.save("w2vModel")
+    // ----------------W2V MODEL----------------
+    var trainW2V = true
+    if (fs.exists(new org.apache.hadoop.fs.Path("w2vModel"))) {
+      println("loading existing word 2 vec model")
+      trainW2V = false
+    }
 
-    val w2v = Word2VecModel.load("w2vModel")
+    if (trainW2V) {
+      // train w2v model
+      println("start training word2vec")
+      val w2v_t = preprocessor.word2vec_train(train, 30, 10, "filtered", "features")
+      w2v_t.save("w2vModel")
+    }
 
-    println("start training logreg")
+    // load model from file
+    val w2vModel = Word2VecModel.load("w2vModel")
+    // ----------------W2V MODEL----------------
+
+
+
+    // ----------------LOGREG MODEL----------------
     println("---------------LOGISTIC REGRESSION---------------")
-    val lr_out = models.logreg_train_eval(train, test, w2v, sc)
-    val lrModel = lr_out._1
-    print("Max f1 score is ")
-    print(lr_out._2._2)
-    print(" for the threshold ")
-    println(lr_out._2._1)
 
-    println("start training random forest")
+    var trainLogreg = true
+    if (fs.exists(new org.apache.hadoop.fs.Path("logregModel"))) {
+      println("loading existing logistic regression model")
+      trainLogreg = false
+    }
+
+    if (trainLogreg) {
+      // train the model
+      println("start training logreg")
+      models.logregTrain(train, w2vModel, sc)
+    }
+
+    // load model from file
+    val lrModel = CrossValidatorModel.load("logregModel")
+
+    // evaluate on test data
+    val scores_lr = models.testEval(test, w2vModel, lrModel, sc)
+
+    println("SCORES ON TEST DATA")
+    print("precision: ")
+    println(scores_lr._1)
+    print("recall: ")
+    println(scores_lr._2)
+    print("f1 score: ")
+    println(scores_lr._3)
+    // ----------------LOGREG MODEL----------------
+
+
+
+    // ----------------RAND FOREST MODEL----------------
     println("---------------RANDOM FOREST---------------")
-    val rf_out = models.randForest_train_eval(train, test, w2v, sc)
-    var rfModel = rf_out._1
-    print("Max f1 score is ")
-    print(rf_out._2._2)
-    print(" for the threshold ")
-    println(rf_out._2._1)
+
+    var trainRF = true
+    if (fs.exists(new org.apache.hadoop.fs.Path("rfModel"))) {
+      println("loading existing random forest model")
+      trainRF = false
+    }
+
+    if (trainRF) {
+      // train the model
+      println("start training random forest")
+      models.rfTrain(train, w2vModel, sc)
+    }
+    // load model from file
+    val rfModel = CrossValidatorModel.load("rfModel")
+
+    // evaluate on test data
+    val scores_rf = models.testEval(test, w2vModel, rfModel, sc)
+
+    println("SCORES ON TEST DATA")
+    print("precision: ")
+    println(scores_rf._1)
+    print("recall: ")
+    println(scores_rf._2)
+    print("f1 score: ")
+    println(scores_rf._3)
+    // ----------------RAND FOREST MODEL----------------
   }
 }

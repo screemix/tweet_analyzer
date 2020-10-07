@@ -17,7 +17,8 @@ import preprocessor.Preprocessor
 
 class Models {
 
-  def evaluate_custom(predictionAndLabels: RDD[(Double, Double)]) : Unit = {
+
+  def evaluate_custom(predictionAndLabels: RDD[(Double, Double)]) : (Double, Double, Double) = {
     var tp = 0
     var tn = 0
     var fp = 0
@@ -40,16 +41,13 @@ class Models {
         }
       }
     }
-    println(tp)
-    println(tn)
-    println(fp)
-    println(fn)
     val precision = tp.toDouble/(tp+fp).toDouble
     val recall =  tp.toDouble/(tp+fn).toDouble
     val f1Score = 2 * ((precision * recall) / (precision + recall))
-    print("custom f1-score: ")
-    println(f1Score)
+
+    (precision, recall, f1Score)
   }
+
 
   def evaluate(predictionAndLabels: RDD[(Double, Double)]): (Double, Double) = {
 
@@ -74,13 +72,18 @@ class Models {
   }
 
 
-  def logreg_train_eval(train: DataFrame, test: DataFrame, w2vModel: Word2VecModel, sc: SparkContext): (CrossValidatorModel, (Double, Double)) = {
+  def logregTrain(train: DataFrame, w2vModel: Word2VecModel, sc: SparkContext): Unit = {
+
+    // hyperparam tuning and training logistic regression
+    // model saved to logregModel
+
     val sqlContext= new SQLContext(sc)
     import sqlContext.implicits._
 
     // vectorize train data
     val train_vec_lr = w2vModel.transform(train)
-    // transform train data to labeled point
+
+    // transform train data to labeled point - UNNEEDED BUT WHATEVER
     //val train_labeled = train_vec_lr.map(x => LabeledPoint(x.getAs[Int]("label").toDouble, Vectors.fromML(x.getAs[Vector]("features")))).rdd
 
     // new logreg model, train
@@ -91,49 +94,33 @@ class Models {
     // ------------HYPERPARAM TUNING------------
     // COMMENTED CODE USED FOR TUNING
     // hyperparam tuning and crying
-//    val paramGrid_lr = new ParamGridBuilder().
-//      addGrid(lrModel.regParam, Array(0, 0.01, 0.1)).
-//      addGrid(lrModel.threshold, Array(0.3, 0.4, 0.5, 0.6)).
-//      addGrid(lrModel.fitIntercept, Array(true, false)).
-//      build()
-//
-//    val crossval_lr = new CrossValidator()
-//      .setEstimator(lrModel)
-//      .setEvaluator(new BinaryClassificationEvaluator)
-//      .setEstimatorParamMaps(paramGrid_lr)
-//      .setNumFolds(5)
-//
-//    val cvModel = crossval_lr.fit(train_vec_lr)
-//
-//    println("Logistic Regression - Best Params")
-//    println(cvModel.bestModel.extractParamMap())
-//
-//    cvModel.save("logregModel")
+    val paramGrid_lr = new ParamGridBuilder().
+      addGrid(lrModel.regParam, Array(0, 0.01, 0.1)).
+      addGrid(lrModel.threshold, Array(0.3, 0.4, 0.5, 0.6)).
+      addGrid(lrModel.fitIntercept, Array(true, false)).
+      build()
+
+    val crossval_lr = new CrossValidator()
+      .setEstimator(lrModel)
+      .setEvaluator(new BinaryClassificationEvaluator)
+      .setEstimatorParamMaps(paramGrid_lr)
+      .setNumFolds(5)
+
+    val cvModel = crossval_lr.fit(train_vec_lr)
+
+    println("Logistic Regression - Best Params")
+    println(cvModel.bestModel.extractParamMap())
+
+    cvModel.save("logregModel")
     // ------------HYPERPARAM TUNING------------
-
-    // testing
-
-    val logregModel = CrossValidatorModel.load("logregModel")
-
-    // vectorize test data
-    val test_vec_lr = w2vModel.transform(test)
-    // transform test data to labeledpoint
-    //val test_labeled = test_vec_lr.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vec")))).rdd
-
-    val test_transf_lr = logregModel.transform(test_vec_lr)
-    // make predictions on test data
-    val predictionAndLabels_lr = test_transf_lr.map(x => (x.getAs[Vector]("probability")(1), x.getAs[Int]("label").toDouble)).rdd
-
-    // evaluate mode, find the best threshold
-    val max_score_lr = evaluate(predictionAndLabels_lr)
-    val threshold_lr = max_score_lr._1
-    evaluate_custom(predictionAndLabels_lr.map(x => if (x._1 > 0.35) (1.0, x._2) else (0.0, x._2)))
-
-    // return model, (threshold, max_f1)
-    (logregModel, max_score_lr)
   }
 
-  def randForest_train_eval(train: DataFrame, test: DataFrame, w2vModel: Word2VecModel, sc: SparkContext): (CrossValidatorModel, (Double, Double))= {
+
+  def rfTrain(train: DataFrame, w2vModel: Word2VecModel, sc: SparkContext): Unit = {
+
+    // hyperparam tuning and training logistic regression
+    // model saved to rfModel
+
     val sqlContext= new SQLContext(sc)
     import sqlContext.implicits._
 
@@ -148,41 +135,50 @@ class Models {
     // ------------HYPERPARAM TUNING------------
     // COMMENTED CODE USED FOR TUNING
     // hyperparam tuning and crying
-//    val paramGrid_rf = new ParamGridBuilder().
-//      addGrid(rf.maxDepth, Array(5, 10)).
-//      addGrid(rf.numTrees, Array(5, 10, 20, 30)).
-//      build()
-//
-//    val crossval_rf = new CrossValidator()
-//      .setEstimator(rf)
-//      .setEvaluator(new BinaryClassificationEvaluator)
-//      .setEstimatorParamMaps(paramGrid_rf)
-//      .setNumFolds(5)
-//
-//    val cvModel = crossval_rf.fit(train_vec_rf)
-//
-//    println("Random Forest - Best Params")
-//    println(cvModel.bestModel.extractParamMap())
-//
-//    cvModel.save("rfModel")
-    // ------------HYPERPARAM TUNING------------
+    val paramGrid_rf = new ParamGridBuilder().
+      addGrid(rf.maxDepth, Array(5, 10)).
+      addGrid(rf.numTrees, Array(5, 10, 20, 30)).
+      build()
 
-    val rfModel = CrossValidatorModel.load("rfModel")
+    val crossval_rf = new CrossValidator()
+      .setEstimator(rf)
+      .setEvaluator(new BinaryClassificationEvaluator)
+      .setEstimatorParamMaps(paramGrid_rf)
+      .setNumFolds(5)
+
+    val cvModel = crossval_rf.fit(train_vec_rf)
+
+    println("Random Forest - Best Params")
+    println(cvModel.bestModel.extractParamMap())
+
+    cvModel.save("rfModel")
+    // ------------HYPERPARAM TUNING------------
+  }
+
+  def testEval(test: DataFrame, w2vModel: Word2VecModel, model: CrossValidatorModel, sc: SparkContext): (Double, Double, Double) = {
+
+    // evaluate model on test dataset
+    // return precision, recall, f1 score
+
+    val sqlContext= new SQLContext(sc)
+    import sqlContext.implicits._
 
     // vectorize test data
-    val test_vec_rf = w2vModel.transform(test)
-    val predictions = rfModel.transform(test_vec_rf)
+    val test_vec = w2vModel.transform(test)
+    // transform test data to labeledpoint
+    //val test_labeled = test_vec_lr.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vec")))).rdd
 
+    val test_transf = model.transform(test_vec)
     // make predictions on test data
-    val predictionAndLabels_rf = predictions.map(x => (x.getAs[Vector]("probability")(1), x.getAs[Int]("label").toDouble)).rdd
+    val predictionAndLabels = test_transf.map(x => (x.getAs[Vector]("probability")(1), x.getAs[Int]("label").toDouble)).rdd
 
     // evaluate mode, find the best threshold
-    val max_score_rf = evaluate(predictionAndLabels_rf)
-    val threshold_rf = max_score_rf._1
-    evaluate_custom(predictionAndLabels_rf.map(x => if (x._1 > 0.4) (1.0, x._2) else (0.0, x._2)))
+    val max_score = evaluate(predictionAndLabels)
+    val threshold = max_score._1
 
-    // return model, (threshold, max_f1)
-    (rfModel, max_score_rf)
+    // return (precision, recall, f1 score)
+    evaluate_custom(predictionAndLabels.map(x => if (x._1 > threshold) (1.0, x._2) else (0.0, x._2)))
+
   }
 
 }

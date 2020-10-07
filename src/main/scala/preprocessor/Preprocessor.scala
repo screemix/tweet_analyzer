@@ -21,6 +21,7 @@ class Preprocessor {
     }
   }
 
+
   def parse_repetitions(row: (Int, Int, String, Int)) : (Int, Int, String, Int, Int) = {
     // checks if there are repetitive characters (more than 2)
     // if so replaces them with one
@@ -93,6 +94,7 @@ class Preprocessor {
     val cleared_df = clear_seq(train_data, sc)
     cleared_df
   }
+
 
   def clear_input(tweet: String, sc: SparkContext): DataFrame ={
 
