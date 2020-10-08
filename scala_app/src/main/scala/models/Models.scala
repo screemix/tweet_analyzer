@@ -13,6 +13,7 @@ import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions.{col, monotonically_increasing_id}
 import preprocessor.Preprocessor
 
 class Models {
@@ -153,6 +154,62 @@ class Models {
 
     cvModel.save("rfModel")
     // ------------HYPERPARAM TUNING------------
+  }
+
+
+  def KNNEval(train: DataFrame, test: DataFrame, w2vModel: Word2VecModel, k: Int, sc: SparkContext) : (Double, Double, Double) = {
+
+    // NOT WORKING FOR THE REASONS UNKNOWN
+
+    val sqlContext= new SQLContext(sc)
+    import sqlContext.implicits._
+
+    val predsLabels = Seq[(Double, Double)]()
+
+    test.show(false)
+    val tweets = test.map(x => (x.getAs[Seq[String]]("filtered"), x.getAs[Int]("label").toDouble)).collect()
+    for (tweet <- tweets) {
+      val tweetDF = Seq((tweet._2, tweet._1)).toDF("label", "filtered")
+      predsLabels :+ (KNNpredict(train, tweetDF, w2vModel, sc, k), tweet._2)
+    }
+
+    evaluate_custom(sc.parallelize(predsLabels).rdd)
+
+  }
+
+  def KNNpredict(data: DataFrame, tweet: DataFrame, w2vModel: Word2VecModel, sc: SparkContext, k: Int): Int ={
+
+    // Alla's cute smol child
+    // we just do hope that it works nice
+
+    val sqlContext= new SQLContext(sc)
+    import sqlContext.implicits._
+
+    // vetorizing the tweets representation
+    val dataVec = w2vModel.transform(data)
+
+    // calculating pairwise distances
+    val tweet_vec = w2vModel.transform(tweet).first().getAs[Vector]("features")
+    val dist = dataVec
+      .map(x => (math abs(x.getAs[Vector]("features").
+        dot(tweet_vec)) / (math sqrt(x.getAs[Vector]("features").
+        dot(x.getAs[Vector]("features")) * tweet_vec.dot(tweet_vec)))))
+    val dist_temp = dist.withColumn("rowId1", monotonically_increasing_id())
+    val data_temp = data.withColumn("rowId2", monotonically_increasing_id())
+
+    val distances = dist_temp.as("df1").
+      join(data_temp.as("df2"), dist_temp("rowId1") === data_temp("rowId2"), "inner").
+      select("df1.value", "df2.id", "df2.label")
+
+    // finding top k neighbours
+    val num =  distances.sort(col("value")).select(col("label")).head(k).map(x => x(0).asInstanceOf[Int]).reduce(_+_)
+    if (num >= k /2){
+      1
+    }
+    else{
+      0
+    }
+
   }
 
   def testEval(test: DataFrame, w2vModel: Word2VecModel, model: CrossValidatorModel, sc: SparkContext): (Double, Double, Double) = {

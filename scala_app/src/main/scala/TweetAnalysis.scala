@@ -1,21 +1,14 @@
-import org.apache.spark
-import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SparkSession}
-import org.apache.spark.ml.feature.{RegexTokenizer, StopWordsRemover}
-import org.apache.spark.ml.feature.{HashingTF, IDF}
-import org.apache.spark.sql.catalyst.dsl.expressions.StringToAttributeConversionHelper
-import org.apache.spark.sql.functions._
 import org.apache.spark.ml.tuning.CrossValidatorModel
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.feature.Word2VecModel
-import java.io.File
 import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 
 import preprocessor.Preprocessor
 import models.Models
+import org.apache.spark.sql.functions.{col, lit}
 
 object TweetAnalysis {
   def main(args: Array[String]): Unit = {
@@ -28,12 +21,16 @@ object TweetAnalysis {
     val sc = spark.sparkContext
     val preprocessor = new Preprocessor()
     val models = new Models()
+    val train_cleared = preprocessor.clear_train(inputPath, sc)
+
 
     // evaluate on train data
-    val trainedModels = evalOnTrainTest(inputPath, preprocessor, models, sc)
+    val trainedModels = evalOnTrainTest(train_cleared, preprocessor, models, sc)
     val w2vModel = trainedModels._1
     val lrModel = trainedModels._2
     val rfModel = trainedModels._3
+
+    KNNEvalOnTest(train_cleared, w2vModel, models, sc)
 
     // stream analysis
     println("START STREAM PROCESSING")
@@ -45,10 +42,13 @@ object TweetAnalysis {
     // 							.withColumn("2nd model", AminaModel.predict(col("value").toString()))
 
     val formatter = DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss")
-    
-    val Models_predict = notNull.select(lit(formatter.format(LocalDateTime.now())), col("value"),
+
+    val Models_predict = notNull.select(
+      lit(formatter.format(LocalDateTime.now())),
+      col("value"),
       lit(predict(col("value").toString(), preprocessor, models, w2vModel, lrModel, sc)).as("1st model"),
-      lit(predict(col("value").toString(), preprocessor, models, w2vModel, rfModel, sc)).as("2nd model"))
+      lit(predict(col("value").toString(), preprocessor, models, w2vModel, rfModel, sc)).as("2nd model"),
+      lit(models.KNNpredict(train_cleared, preprocessor.clear_input(col("value").toString(), sc), w2vModel, sc, 10)).as("3rd model"))
 
 
     val query = Models_predict.writeStream
@@ -73,7 +73,25 @@ object TweetAnalysis {
   }
 
 
-  def evalOnTrainTest(inputPath: String, preprocessor: Preprocessor, models: Models, sc: SparkContext): (Word2VecModel, CrossValidatorModel, CrossValidatorModel) = {
+  def KNNEvalOnTest(train_cleared: DataFrame, w2vModel: Word2VecModel, models: Models, sc: SparkContext): Unit = {
+
+    // NOT WORKING FOR THE REASONS UNKNOWN
+
+    println("---------------KNN---------------")
+    val Array(train, test) = train_cleared.randomSplit(Array[Double](0.995, 0.005))
+    val scoresKNN = models.KNNEval(train, test, w2vModel, 10, sc)
+
+    println("SCORES ON TEST DATA")
+    print("precision: ")
+    println(scoresKNN._1)
+    print("recall: ")
+    println(scoresKNN._2)
+    print("f1 score: ")
+    println(scoresKNN._3)
+  }
+
+
+  def evalOnTrainTest(train_cleared: DataFrame, preprocessor: Preprocessor, models: Models, sc: SparkContext): (Word2VecModel, CrossValidatorModel, CrossValidatorModel) = {
 
     // creates or loads models
     //
@@ -81,9 +99,7 @@ object TweetAnalysis {
     val conf = sc.hadoopConfiguration
     val fs = org.apache.hadoop.fs.FileSystem.get(conf)
 
-    // clear train file
     println("start preprocessing")
-    val train_cleared = preprocessor.clear_train(inputPath, sc)
 
     // train-test split
     val Array(train, test) = train_cleared.randomSplit(Array[Double](0.7, 0.3))
@@ -170,5 +186,24 @@ object TweetAnalysis {
     // ----------------RAND FOREST MODEL----------------
 
     (w2vModel, lrModel, rfModel)
+  }
+
+  def knnOnExistingStream(train: DataFrame, preprocessor: Preprocessor, models: Models, w2vModel: Word2VecModel, sc: SparkContext, spark: SparkSession): Unit = {
+
+    // DOES WORK!!!!
+    // implemented later so that we can evaluate the existing data and not wait again
+
+    val sqlContext= new SQLContext(sc)
+    import sqlContext.implicits._
+
+    val train_data = spark.read.format("csv").
+      option("header", "true").
+      load("tweets.csv").
+      map(x => (x.getAs[String](0))).collect()
+
+    for (x <- train_data) {
+      println(models.KNNpredict(train, preprocessor.clear_input(x, sc), w2vModel, sc, 10))
+    }
+    // train_data.foreach(x => println(models.KNNpredict(train, preprocessor.clear_input(x, sc), w2vModel, sc, 10)))
   }
 }
