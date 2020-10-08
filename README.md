@@ -228,6 +228,8 @@ The stream tweets and predictions can be found in `tweets_classified.csv` file. 
 +----------+---------------------+---------------+------+
 ```
 
+NOTE: the `tweets_classified.csv` has no timestamps because of our inattention. Later, we have fixed that and the final version of how the output file looks like may be observed in `tweets_final.csv`.
+
 ## How to execute
 
 ```
