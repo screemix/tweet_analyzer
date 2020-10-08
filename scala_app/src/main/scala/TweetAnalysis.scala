@@ -11,6 +11,8 @@ import org.apache.spark.ml.tuning.CrossValidatorModel
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.feature.Word2VecModel
 import java.io.File
+import java.time.format.DateTimeFormatter
+import java.time.LocalDateTime
 
 import preprocessor.Preprocessor
 import models.Models
@@ -42,7 +44,9 @@ object TweetAnalysis {
     // val Models_predict = notNull.withColumn("1st model", AllaModel.predict(col("value").toString()))
     // 							.withColumn("2nd model", AminaModel.predict(col("value").toString()))
 
-    val Models_predict = notNull.select(col("value"),
+    val formatter = DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss")
+    
+    val Models_predict = notNull.select(lit(formatter.format(LocalDateTime.now())), col("value"),
       lit(predict(col("value").toString(), preprocessor, models, w2vModel, lrModel, sc)).as("1st model"),
       lit(predict(col("value").toString(), preprocessor, models, w2vModel, rfModel, sc)).as("2nd model"))
 
