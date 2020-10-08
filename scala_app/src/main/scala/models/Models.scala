@@ -112,7 +112,7 @@ class Models {
     println("Logistic Regression - Best Params")
     println(cvModel.bestModel.extractParamMap())
 
-    cvModel.save("logregModel")
+    cvModel.save("hdfs://namenode:9000/user/sharpei/logregModel")
     // ------------HYPERPARAM TUNING------------
   }
 
@@ -152,7 +152,7 @@ class Models {
     println("Random Forest - Best Params")
     println(cvModel.bestModel.extractParamMap())
 
-    cvModel.save("rfModel")
+    cvModel.save("hdfs://namenode:9000/user/sharpei/rfModel")
     // ------------HYPERPARAM TUNING------------
   }
 
@@ -222,7 +222,7 @@ class Models {
 
     // vectorize test data
     val testVec = w2vModel.transform(test)
-    // transform test data to labeledpoint
+    // transform test data to labeled point
     //val test_labeled = test_vec_lr.map(x => LabeledPoint(x.getAs[Int]("sentiment").toDouble, Vectors.fromML(x.getAs[Vector]("vec")))).rdd
 
     val testTransf = model.transform(testVec)

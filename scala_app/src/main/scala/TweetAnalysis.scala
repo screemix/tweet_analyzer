@@ -30,16 +30,12 @@ object TweetAnalysis {
     val lrModel = trainedModels._2
     val rfModel = trainedModels._3
 
-    KNNEvalOnTest(train_cleared, w2vModel, models, sc)
-
     // stream analysis
     println("START STREAM PROCESSING")
     val tweets = spark.readStream.format("socket").option("host", "10.90.138.32").option("port", "8989").load()
 
     val notNull = tweets.filter("value != ''")
 
-    // val Models_predict = notNull.withColumn("1st model", AllaModel.predict(col("value").toString()))
-    // 							.withColumn("2nd model", AminaModel.predict(col("value").toString()))
 
     val formatter = DateTimeFormatter.ofPattern("MM-dd--HH_mm_ss")
 
@@ -58,7 +54,7 @@ object TweetAnalysis {
       .option("checkpointLocation", "hdfs://namenode:9000/user/sharpei/checkpoint_dir/")
       .outputMode("append")
       .start()
-      .awaitTermination(60000 * 30)
+      .awaitTermination(60000 * 5)
 
 
     spark.read.csv("hdfs://namenode:9000/user/sharpei/output/").coalesce(1).write.csv("hdfs://namenode:9000/user/sharpei/final_output/")
@@ -106,7 +102,7 @@ object TweetAnalysis {
 
     // ----------------W2V MODEL----------------
     var trainW2V = true
-    if (fs.exists(new org.apache.hadoop.fs.Path("w2vModel"))) {
+    if (fs.exists(new org.apache.hadoop.fs.Path("hdfs://namenode:9000/user/sharpei/w2vModel"))) {
       println("loading existing word 2 vec model")
       trainW2V = false
     }
@@ -115,11 +111,11 @@ object TweetAnalysis {
       // train w2v model
       println("start training word2vec")
       val w2v_t = preprocessor.word2vec_train(train, 30, 10, "filtered", "features")
-      w2v_t.save("w2vModel")
+      w2v_t.save("hdfs://namenode:9000/user/sharpei/w2vModel")
     }
 
     // load model from file
-    val w2vModel = Word2VecModel.load("w2vModel")
+    val w2vModel = Word2VecModel.load("hdfs://namenode:9000/user/sharpei/w2vModel")
     // ----------------W2V MODEL----------------
 
 
@@ -128,7 +124,7 @@ object TweetAnalysis {
     println("---------------LOGISTIC REGRESSION---------------")
 
     var trainLogreg = true
-    if (fs.exists(new org.apache.hadoop.fs.Path("logregModel"))) {
+    if (fs.exists(new org.apache.hadoop.fs.Path("hdfs://namenode:9000/user/sharpei/logregModel"))) {
       println("loading existing logistic regression model")
       trainLogreg = false
     }
@@ -140,7 +136,7 @@ object TweetAnalysis {
     }
 
     // load model from file
-    val lrModel = CrossValidatorModel.load("logregModel")
+    val lrModel = CrossValidatorModel.load("hdfs://namenode:9000/user/sharpei/logregModel")
 
     // evaluate on test data
     val scores_lr = models.testEval(test, w2vModel, lrModel, sc)
@@ -160,7 +156,7 @@ object TweetAnalysis {
     println("---------------RANDOM FOREST---------------")
 
     var trainRF = true
-    if (fs.exists(new org.apache.hadoop.fs.Path("rfModel"))) {
+    if (fs.exists(new org.apache.hadoop.fs.Path("hdfs://namenode:9000/user/sharpei/rfModel"))) {
       println("loading existing random forest model")
       trainRF = false
     }
@@ -171,7 +167,7 @@ object TweetAnalysis {
       models.rfTrain(train, w2vModel, sc)
     }
     // load model from file
-    val rfModel = CrossValidatorModel.load("rfModel")
+    val rfModel = CrossValidatorModel.load("hdfs://namenode:9000/user/sharpei/rfModel")
 
     // evaluate on test data
     val scores_rf = models.testEval(test, w2vModel, rfModel, sc)
@@ -198,7 +194,7 @@ object TweetAnalysis {
 
     val train_data = spark.read.format("csv").
       option("header", "true").
-      load("tweets.csv").
+      load("hdfs://namenode:9000/user/sharpei/tweets.csv").
       map(x => (x.getAs[String](0))).collect()
 
     for (x <- train_data) {
